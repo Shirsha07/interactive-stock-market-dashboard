@@ -15,7 +15,7 @@ st.title("📈 Stock Market Visualizer")
 # Load Nifty 200 symbols from GitHub (static copy)
 @st.cache_data
 def load_nifty200():
-    url = "https://raw.githubusercontent.com/your-username/your-repo/main/nifty200.csv"
+    url = "https://raw.githubusercontent.com/Shirsha07/interactive-stock-market-dashboard/main/nifty200.csv"
     df = pd.read_csv(url)
     return df["Symbol"].tolist()
 
