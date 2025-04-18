@@ -32,7 +32,8 @@ def fetch_data(symbol, period="1y"):
     bb = BollingerBands(close=close_price)
     df["BB_upper"] = bb.bollinger_hband().squeeze()
     df["BB_lower"] = bb.bollinger_lband().squeeze()
-    df["Close"] , df["BB_upper"] = df["Close"].align(df["BB_upper"],axis=0)
+    df["Close"] , df["BB_upper"] = df["Close"].align(df["BB_upper"],join='inner',axis=0)
+    df.dropna(subset=["Close", "BB_upper"],inplace=True)
     df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
     return df
 
