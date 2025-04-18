@@ -25,7 +25,7 @@ nifty200_symbols = load_nifty200()
 def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
     df.dropna(inplace=True)
-    df["EMA20"] = EMAIndicator(df["Close"], window=20).ema_indicator()
+    df["EMA20"] = EMAIndicator(df["Close"].squeeze(), window=20).ema_indicator()
     df["MACD"] = MACD(close=df["Close"]).macd_diff()
     df["RSI"] = RSIIndicator(close=df["Close"]).rsi()
     bb = BollingerBands(close=df["Close"])
