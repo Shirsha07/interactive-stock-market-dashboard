@@ -33,6 +33,8 @@ def fetch_data(symbol, period="1y"):
     df["BB_upper"] = bb.bollinger_hband().squeeze()
     df["BB_lower"] = bb.bollinger_lband().squeeze()
     df["Close"] , df["BB_upper"] = df["Close"].align(df["BB_upper"],join='inner',axis=0)
+    if len(df["Close"]) != len(df["BB_upper"]):
+        raise ValueError("Close and BB_upper are not aligned after alignment!")
     df.dropna(subset=["Close", "BB_upper"],inplace=True)
     df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
     return df
