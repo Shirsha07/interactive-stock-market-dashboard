@@ -26,12 +26,12 @@ def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
     df.dropna(inplace=True)
     close_price = df["Close"].squeeze()
-    df["EMA20"] = EMAIndicator(close = close_price, window=20).ema_indicator()
-    df["MACD"] = MACD(close=close_price).macd_diff()
-    df["RSI"] = RSIIndicator(close=close_price).rsi()
+    df["EMA20"] = EMAIndicator(close = close_price, window=20).ema_indicator().squeeze()
+    df["MACD"] = MACD(close=close_price).macd_diff().squeeze()
+    df["RSI"] = RSIIndicator(close=close_price).rsi().squeeze()
     bb = BollingerBands(close=close_price)
-    df["BB_upper"] = bb.bollinger_hband()
-    df["BB_lower"] = bb.bollinger_lband()
+    df["BB_upper"] = bb.bollinger_hband().squeeze()
+    df["BB_lower"] = bb.bollinger_lband().squeeze()
     df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
     return df
 
