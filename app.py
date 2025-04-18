@@ -25,18 +25,37 @@ nifty200_symbols = load_nifty200()
 def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
     df.dropna(inplace=True)
+
+    # Ensure 1D Series for close price
     close_price = df["Close"].squeeze()
-    df["EMA20"] = EMAIndicator(close = close_price, window=20).ema_indicator().squeeze()
+
+    # Calculate indicators and ensure they are 1-dimensional
+    df["EMA20"] = EMAIndicator(close=close_price, window=20).ema_indicator().squeeze()
     df["MACD"] = MACD(close=close_price).macd_diff().squeeze()
     df["RSI"] = RSIIndicator(close=close_price).rsi().squeeze()
+
     bb = BollingerBands(close=close_price)
     df["BB_upper"] = bb.bollinger_hband().squeeze()
     df["BB_lower"] = bb.bollinger_lband().squeeze()
-    df["Close"] , df["BB_upper"] = df["Close"].align(df["BB_upper"],join='inner',axis=0)
-    if len(df["Close"]) != len(df["BB_upper"]):
-        raise ValueError("Close and BB_upper are not aligned after alignment!")
-    df.dropna(subset=["Close", "BB_upper"],inplace=True)
+
+    # Debug: Check the columns in df
+    st.write("Columns in DataFrame:", df.columns)
+
+    # Align 'Close' and 'BB_upper' columns
+    df["Close"], df["BB_upper"] = df["Close"].align(df["BB_upper"], join='inner', axis=0)
+
+    # Debug: Check the lengths after alignment
+    st.write("Length of 'Close' and 'BB_upper' after alignment:", len(df["Close"]), len(df["BB_upper"]))
+
+    # Drop rows where either 'Close' or 'BB_upper' is NaN
+    if 'Close' in df.columns and 'BB_upper' in df.columns:
+        df.dropna(subset=["Close", "BB_upper"], inplace=True)
+    else:
+        raise KeyError("Columns 'Close' or 'BB_upper' are missing!")
+
+    # Perform the comparison after ensuring proper alignment
     df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
+
     return df
 
 # Analyze stock for trend
