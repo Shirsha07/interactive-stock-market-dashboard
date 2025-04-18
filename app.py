@@ -1,4 +1,3 @@
-import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -42,6 +41,25 @@ def fetch_data(symbol, period="1y"):
         bb = BollingerBands(close=close)
         df["BB_upper"] = bb.bollinger_hband()
         df["BB_lower"] = bb.bollinger_lband()
+        st.write(f"Columns after indicators for {symbol}:", df.columns.tolist())
+
+    # Drop only if both exist
+    required_cols = ["Close", "BB_upper"]
+    if all(col in df.columns for col in required_cols):
+        df.dropna(subset=required_cols, inplace=True)
+    else:
+        missing = [col for col in required_cols if col not in df.columns]
+        st.error(f"Missing required columns: {missing}")
+        return pd.DataFrame()
+
+    # Align and compare
+    close_aligned, bb_upper_aligned = df["Close"].align(df["BB_upper"], join='inner')
+    df = df.loc[close_aligned.index]
+    df["Touching_Upper_Band"] = close_aligned >= bb_upper_aligned
+
+    st.write(f"Final DataFrame preview for {symbol}:", df.head())
+
+    return df
     except Exception as e:
         st.error(f"Error calculating indicators for {symbol}: {e}")
         return pd.DataFrame()
@@ -172,5 +190,6 @@ st.json({
     "upward": upward,
     "downward": downward
 })
+
 
 
