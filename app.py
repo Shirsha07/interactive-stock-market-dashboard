@@ -24,37 +24,45 @@ nifty200_symbols = load_nifty200()
 # Fetch stock data + indicators
 def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
-    df.dropna(inplace=True)
 
-    # Ensure 1D Series for close price
-    close_price = df["Close"].squeeze()
+    if df.empty:
+        st.warning(f"No data fetched for {symbol}")
+        return pd.DataFrame()
 
-    # Calculate indicators and ensure they are 1-dimensional
-    df["EMA20"] = EMAIndicator(close=close_price, window=20).ema_indicator().squeeze()
-    df["MACD"] = MACD(close=close_price).macd_diff().squeeze()
-    df["RSI"] = RSIIndicator(close=close_price).rsi().squeeze()
+    if "Close" not in df.columns:
+        st.error(f"'Close' column is missing for {symbol}")
+        return pd.DataFrame()
 
-    bb = BollingerBands(close=close_price)
-    df["BB_upper"] = bb.bollinger_hband().squeeze()
-    df["BB_lower"] = bb.bollinger_lband().squeeze()
+    try:
+        # Calculate indicators
+        close = df["Close"]
+        df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
+        df["MACD"] = MACD(close=close).macd_diff()
+        df["RSI"] = RSIIndicator(close=close).rsi()
+        bb = BollingerBands(close=close)
+        df["BB_upper"] = bb.bollinger_hband()
+        df["BB_lower"] = bb.bollinger_lband()
+    except Exception as e:
+        st.error(f"Error calculating indicators for {symbol}: {e}")
+        return pd.DataFrame()
 
-    # Debug: Check the columns in df
-    st.write("Columns in DataFrame:", df.columns)
+    # ✅ Only drop NaNs if both columns exist
+    missing_cols = [col for col in ["Close", "BB_upper"] if col not in df.columns]
+    if missing_cols:
+        st.error(f"Missing columns: {missing_cols}")
+        return pd.DataFrame()
 
-    # Align 'Close' and 'BB_upper' columns
-    df["Close"], df["BB_upper"] = df["Close"].align(df["BB_upper"], join='inner', axis=0)
+    # Drop rows with NaNs in required columns
+    df.dropna(subset=["Close", "BB_upper"], inplace=True)
 
-    # Debug: Check the lengths after alignment
-    st.write("Length of 'Close' and 'BB_upper' after alignment:", len(df["Close"]), len(df["BB_upper"]))
+    # Ensure 1D and aligned series
+    close = df["Close"]
+    bb_upper = df["BB_upper"]
+    close_aligned, bb_upper_aligned = close.align(bb_upper, join="inner")
+    df = df.loc[close_aligned.index]
 
-    # Drop rows where either 'Close' or 'BB_upper' is NaN
-    if 'Close' in df.columns and 'BB_upper' in df.columns:
-        df.dropna(subset=["Close", "BB_upper"], inplace=True)
-    else:
-        raise KeyError("Columns 'Close' or 'BB_upper' are missing!")
-
-    # Perform the comparison after ensuring proper alignment
-    df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
+    # Perform the comparison
+    df["Touching_Upper_Band"] = close_aligned >= bb_upper_aligned
 
     return df
 
