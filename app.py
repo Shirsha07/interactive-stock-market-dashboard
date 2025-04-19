@@ -37,10 +37,6 @@ def fetch_data(symbol, period="1y"):
         # Ensure Close is strictly 1-dimensional (Series)
         close = df["Close"]
 
-        # If we only have a single row (for today), make sure the series is 1D
-        if len(close.shape) > 1:
-            close = close.squeeze()  # Converts 2D array to 1D series if necessary
-
         # Calculate Indicators
         ema = EMAIndicator(close=close, window=20).ema_indicator()
         macd = MACD(close=close).macd_diff()
@@ -121,6 +117,7 @@ if not data.empty:
 
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
