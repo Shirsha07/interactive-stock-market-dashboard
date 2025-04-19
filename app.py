@@ -17,18 +17,23 @@ timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", 
 # Function to fetch and process data
 @st.cache_data
 def fetch_data(symbol, period="1y"):
-    # Ensure the correct format for NSE stock symbols
-    symbol = symbol.upper() + ".NS"
-
-    # Download data using yfinance
-    df = yf.download(symbol, period=period, progress=False)
-
-    if df.empty or "Close" not in df.columns:
-        return pd.DataFrame()
-
     try:
+        symbol = symbol.upper() + ".NS"  # Ensure correct symbol format for NSE stocks
+        st.write(f"Fetching data for: {symbol}")  # Debugging: Show symbol being fetched
+        df = yf.download(symbol, period=period, progress=False)
+
+        # Debugging: Check if the data was fetched correctly
+        st.write(f"Data for {symbol}:")
+        st.write(df.head())  # Display the first few rows to confirm data retrieval
+
+        if df.empty or "Close" not in df.columns:
+            st.warning(f"⚠️ No data available for {symbol}. Please check the symbol or try a different one.")
+            return pd.DataFrame()
+
+        # Ensure Close is strictly 1-dimensional (Series)
+        close = pd.Series(df["Close"].values, index=df.index)
+
         # Calculate Indicators
-        close = df["Close"]
         ema = EMAIndicator(close=close, window=20).ema_indicator()
         macd = MACD(close=close).macd_diff()
         rsi = RSIIndicator(close=close).rsi()
@@ -36,7 +41,7 @@ def fetch_data(symbol, period="1y"):
         bb_upper = bb.bollinger_hband()
         bb_lower = bb.bollinger_lband()
 
-        # Add to dataframe
+        # Add indicators to DataFrame
         df["EMA20"] = ema
         df["MACD"] = macd
         df["RSI"] = rsi
@@ -89,19 +94,9 @@ if not data.empty:
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Exporting chart
-    st.subheader("📤 Export Chart")
-    export_format = st.radio("Select Export Format", ("PNG", "HTML"))
-    if export_format == "PNG":
-        # Export as PNG (Note: For PNG, we need to convert using Kaleido or Orca, which requires additional installation)
-        st.error("Exporting as PNG is not yet implemented. Please use HTML export for now.")
-    elif export_format == "HTML":
-        fig.write_html("stock_chart.html")
-        with open("stock_chart.html", "r") as f:
-            st.download_button(label="Download Chart as HTML", data=f, file_name="stock_chart.html", mime="text/html")
-
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
