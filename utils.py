@@ -15,33 +15,32 @@ def load_data_from_file(uploaded_file):
         raise ValueError("Unsupported file format")
 
 # Function to calculate technical indicators
-def calculate_indicators(df):
-    # Ensure 'Close' is strictly one-dimensional
-    df['Close'] = df['Close'].squeeze()  # Flattening if it's 2D
+def calculate_indicators(data):
+    # Ensure 'Close' column is strictly one-dimensional
+    data['Close'] = data['Close'].squeeze()  # Flattening if it's 2D (i.e., shape (n, 1))
 
     # MACD
-    macd = MACD(df['Close'])
-    df['MACD'] = macd.macd()
-    df['MACD_signal'] = macd.macd_signal()
+    macd_indicator = MACD(data['Close'])
+    data['MACD'] = macd_indicator.macd()
+    data['MACD_signal'] = macd_indicator.macd_signal()
 
     # RSI
-    rsi = RSI(df['Close'])
-    df['RSI'] = rsi.rsi()
+    rsi_indicator = RSI(data['Close'])
+    data['RSI'] = rsi_indicator.rsi()
 
     # Bollinger Bands
-    bb = BollingerBands(df['Close'])
-    df['BB_upper'] = bb.bollinger_hband()
-    df['BB_lower'] = bb.bollinger_lband()
+    bb_indicator = BollingerBands(data['Close'])
+    data['BB_upper'] = bb_indicator.bollinger_hband()
+    data['BB_lower'] = bb_indicator.bollinger_lband()
 
     # EMA (20-period)
-    ema = EMAIndicator(df['Close'], window=20)
-    df['EMA_20'] = ema.ema_indicator()
+    ema_indicator = EMAIndicator(data['Close'], window=20)
+    data['EMA_20'] = ema_indicator.ema_indicator()
 
     # SMA (50-period)
-    df['SMA_50'] = df['Close'].rolling(window=50).mean()
+    data['SMA_50'] = data['Close'].rolling(window=50).mean()
 
-    return df
-
+    return data
 # Function to filter stocks in upward trend
 def filter_upward_trend(df):
     # Filter stocks based on MACD, RSI, Bollinger Bands, and EMA conditions for upward trend
