@@ -5,96 +5,111 @@ from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 import plotly.graph_objects as go
+from datetime import datetime
 
 st.set_page_config(page_title="Stock Market Visualizer", layout="wide")
 st.title("📈 Stock Market Visualizer")
 
-# Sidebar
+# Sidebar for stock selection
 st.sidebar.header("🔍 Stock Selector")
-stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE").upper()
+stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE")
 timeframe = st.sidebar.selectbox("Select Timeframe", ["today", "3mo", "6mo", "1y", "2y", "5y"], index=2)
 
-# Adjust period and interval based on selection
-if timeframe == "today":
-    period = "1d"
-    interval = "5m"
-else:
-    period = timeframe
-    interval = "1d"
+# Determine interval based on timeframe
+def get_interval(timeframe):
+    if timeframe == "today":
+        return "5m", "1d"
+    return "1d", timeframe
 
-# Fetch and process data
-@st.cache_data
+interval, period = get_interval(timeframe)
+
+@st.cache_data(show_spinner=True)
 def fetch_data(symbol, period, interval):
     try:
-        symbol += ".NS"
+        symbol = symbol.upper() + ".NS"
         df = yf.download(symbol, period=period, interval=interval, progress=False)
 
         if df.empty or "Close" not in df.columns:
-            st.warning(f"⚠️ No data for {symbol}.")
             return pd.DataFrame()
 
-        # Ensure Close is 1D Series
-        close = df["Close"]
-        if isinstance(close, pd.DataFrame):
-            close = close.squeeze()
-
-        # Calculate indicators
-        df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
-        df["MACD"] = MACD(close=close).macd_diff()
-        df["RSI"] = RSIIndicator(close=close).rsi()
-        bb = BollingerBands(close=close)
-        df["BB_upper"] = bb.bollinger_hband()
-        df["BB_lower"] = bb.bollinger_lband()
-        df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
-
         df.dropna(inplace=True)
+        df.index = pd.to_datetime(df.index)
         return df
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Error fetching data for {symbol}: {e}")
         return pd.DataFrame()
 
-# Load and display
+# Fetch data
 data = fetch_data(stock, period, interval)
 
 if not data.empty:
-    st.subheader(f"📊 Indicators for {stock}")
-    st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
+    st.subheader(f"📊 Data for {stock.upper()} ({timeframe})")
+    st.write(data.tail())
 
-    st.subheader("📌 Filtered Signals")
-    filtered = data[
-        (data["MACD"] > 0) &
-        (data["RSI"] > 50) &
-        (data["Touching_Upper_Band"]) &
-        (data["Close"] > data["EMA20"])
-    ]
-    st.success(f"✅ {len(filtered)} signal(s) matched.")
-    st.dataframe(filtered.tail(10), use_container_width=True)
+    # Calculate Indicators (make sure 'Close' is a Series)
+    try:
+        close = data["Close"]
 
-    st.subheader("📉 Candlestick Chart")
-    fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
-        open=data["Open"],
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"]
-    )])
-    fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], name="EMA20", line=dict(color="blue")))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], name="BB Upper", line=dict(color="green")))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], name="BB Lower", line=dict(color="red")))
-    fig.update_layout(xaxis_rangeslider_visible=False, height=500)
-    st.plotly_chart(fig, use_container_width=True)
+        data["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
+        data["MACD"] = MACD(close=close).macd_diff()
+        data["RSI"] = RSIIndicator(close=close).rsi()
+        bb = BollingerBands(close=close)
+        data["BB_upper"] = bb.bollinger_hband()
+        data["BB_lower"] = bb.bollinger_lband()
+        data["Touching_Upper_Band"] = data["Close"] >= data["BB_upper"]
 
-    st.subheader("📤 Export Chart")
-    export_format = st.radio("Select Export Format", ("PNG", "HTML"))
-    if export_format == "HTML":
-        fig.write_html("stock_chart.html")
-        with open("stock_chart.html", "r") as f:
-            st.download_button("Download Chart as HTML", f, "stock_chart.html")
-    else:
-        st.error("PNG export not yet supported.")
+        # Drop rows with NaNs after indicator calculation
+        data.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
+
+        # Line chart of indicators
+        st.subheader("📈 Price & Indicators")
+        st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
+
+        # Filter signals
+        st.subheader("📌 Filtered Signals")
+        filtered = data[
+            (data["MACD"] > 0) &
+            (data["RSI"] > 50) &
+            (data["Touching_Upper_Band"]) &
+            (data["Close"] > data["EMA20"])
+        ]
+
+        st.success(f"✅ {len(filtered)} signal(s) matched the criteria.")
+        st.dataframe(filtered.tail(10), use_container_width=True)
+
+        # Candlestick chart with indicators
+        st.subheader("📉 Candlestick Chart")
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.index,
+            open=data["Open"],
+            high=data["High"],
+            low=data["Low"],
+            close=data["Close"]
+        )])
+        fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], mode="lines", name="EMA20", line=dict(color="blue")))
+        fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], mode="lines", name="BB Upper", line=dict(color="green")))
+        fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower", line=dict(color="red")))
+        fig.update_layout(xaxis_rangeslider_visible=False, height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Export Chart
+        st.subheader("📤 Export Chart")
+        export_format = st.radio("Select Export Format", ("PNG", "HTML"))
+        if export_format == "PNG":
+            st.error("Exporting as PNG is not yet implemented. Please use HTML export for now.")
+        elif export_format == "HTML":
+            fig.write_html("stock_chart.html")
+            with open("stock_chart.html", "r") as f:
+                st.download_button(label="Download Chart as HTML", data=f, file_name="stock_chart.html", mime="text/html")
+
+    except Exception as e:
+        st.error(f"❌ Error calculating indicators for {stock.upper()}: {e}")
+
 else:
-    st.warning("⚠️ No data found. Try a different symbol or timeframe.")
+    st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
+
 
 
 
