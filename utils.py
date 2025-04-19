@@ -1,7 +1,6 @@
 import pandas as pd
-import yfinance as yf
 from ta.trend import MACD
-from ta.momentum import RSI
+from ta.momentum import RSIIndicator  # Update import to RSIIndicator
 from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator
 
@@ -24,8 +23,8 @@ def calculate_indicators(data):
     data['MACD'] = macd_indicator.macd()
     data['MACD_signal'] = macd_indicator.macd_signal()
 
-    # RSI
-    rsi_indicator = RSI(data['Close'])
+    # RSI (Updated import to RSIIndicator)
+    rsi_indicator = RSIIndicator(data['Close'])
     data['RSI'] = rsi_indicator.rsi()
 
     # Bollinger Bands
