@@ -1,74 +1,59 @@
-import yfinance as yf
 import pandas as pd
-from ta.trend import MACD, EMAIndicator
-from ta.momentum import RSIIndicator
+import yfinance as yf
+from ta.trend import MACD
+from ta.momentum import RSI
 from ta.volatility import BollingerBands
+from ta.trend import EMAIndicator
 
-# Fetch stock data
-def fetch_stock_data(ticker, start_date, end_date):
-    data = yf.download(ticker, start=start_date, end=end_date)
-    return data
+# Function to load data from a file (CSV/Excel/Google Sheets)
+def load_data_from_file(uploaded_file):
+    if uploaded_file.name.endswith("csv"):
+        return pd.read_csv(uploaded_file)
+    elif uploaded_file.name.endswith(("xls", "xlsx")):
+        return pd.read_excel(uploaded_file)
+    else:
+        raise ValueError("Unsupported file format")
 
-# Calculate indicators and add them to the dataframe
-def calculate_indicators(data):
-    close = data["Close"]  
+# Function to calculate technical indicators
+def calculate_indicators(df):
+    # Ensure 'Close' is strictly one-dimensional
+    df['Close'] = df['Close'].squeeze()  # Flattening if it's 2D
 
-    # MACD (Moving Average Convergence Divergence)
-    macd_indicator = MACD(close)
-    data["MACD"] = macd_indicator.macd()
+    # MACD
+    macd = MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['MACD_signal'] = macd.macd_signal()
 
-    # RSI (Relative Strength Index)
-    rsi_indicator = RSIIndicator(close)
-    data["RSI"] = rsi_indicator.rsi()
-
-    # EMA (Exponential Moving Average) with a 20-day window
-    ema_indicator = EMAIndicator(close, window=20)
-    data["EMA20"] = ema_indicator.ema_indicator()
+    # RSI
+    rsi = RSI(df['Close'])
+    df['RSI'] = rsi.rsi()
 
     # Bollinger Bands
-    bb_indicator = BollingerBands(close)
-    data["BB_upper"] = bb_indicator.bollinger_hband()
-    data["BB_lower"] = bb_indicator.bollinger_lband()
+    bb = BollingerBands(df['Close'])
+    df['BB_upper'] = bb.bollinger_hband()
+    df['BB_lower'] = bb.bollinger_lband()
 
-    # Ensure all new columns are aligned with the existing dataframe
-    data = data.dropna(subset=["MACD", "RSI", "EMA20", "BB_upper", "BB_lower"])
+    # EMA (20-period)
+    ema = EMAIndicator(df['Close'], window=20)
+    df['EMA_20'] = ema.ema_indicator()
 
-    return data
+    # SMA (50-period)
+    df['SMA_50'] = df['Close'].rolling(window=50).mean()
 
-# Filter stocks with upward trend
-def filter_upward_trending_stocks(data):
-    return data[
-        (data["MACD"] > 0) &
-        (data["RSI"] > 50) &
-        (data["Close"] >= data["BB_upper"]) &
-        (data["Close"] > data["EMA20"])
-    ]
+    return df
 
-# Filter stocks with downward trend
-def filter_downward_trending_stocks(data):
-    return data[
-        (data["MACD"] < 0) &
-        (data["RSI"] < 50) &
-        (data["Close"] <= data["BB_lower"]) &
-        (data["Close"] < data["EMA20"])
-    ]
+# Function to filter stocks in upward trend
+def filter_upward_trend(df):
+    # Filter stocks based on MACD, RSI, Bollinger Bands, and EMA conditions for upward trend
+    upward_trend = df[(df['MACD'] > 0) & (df['RSI'] > 50) & (df['Close'] > df['BB_upper']) & (df['Close'] > df['EMA_20'])]
+    return upward_trend
 
-# Example usage
-ticker = "AAPL"
-start_date = "2020-01-01"
-end_date = "2023-01-01"
-data = fetch_stock_data(ticker, start_date, end_date)
-data_with_indicators = calculate_indicators(data)
+# Function to filter stocks in downward trend
+def filter_downward_trend(df):
+    # Filter stocks based on MACD, RSI, Bollinger Bands, and EMA conditions for downward trend
+    downward_trend = df[(df['MACD'] < 0) & (df['RSI'] < 50) & (df['Close'] < df['BB_lower']) & (df['Close'] < df['EMA_20'])]
+    return downward_trend
 
-# Filter upward trending and downward trending stocks
-upward_trends = filter_upward_trending_stocks(data_with_indicators)
-downward_trends = filter_downward_trending_stocks(data_with_indicators)
-
-print("Upward Trending Stocks:")
-print(upward_trends)
-
-print("Downward Trending Stocks:")
-print(downward_trends)
 
 
 
