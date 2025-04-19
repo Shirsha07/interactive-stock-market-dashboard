@@ -14,7 +14,7 @@ st.sidebar.header("🔍 Stock Selector")
 stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE")
 timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
 
-# Fetch & process data
+# Fetch and process data
 @st.cache_data
 def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
@@ -23,24 +23,32 @@ def fetch_data(symbol, period="1y"):
         return pd.DataFrame()
 
     try:
-        # Ensure Close is 1D Series
+        # Ensure Close is a 1D Series
         close = df["Close"]
         if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
+            close = close.squeeze()
         else:
             close = pd.Series(close.values, index=close.index)
 
-        # Technical Indicators
-        df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
-        df["MACD"] = MACD(close=close).macd_diff()
-        df["RSI"] = RSIIndicator(close=close).rsi()
+        # Calculate Indicators
+        ema = EMAIndicator(close=close, window=20).ema_indicator()
+        macd = MACD(close=close).macd_diff()
+        rsi = RSIIndicator(close=close).rsi()
         bb = BollingerBands(close=close)
-        df["BB_upper"] = bb.bollinger_hband()
-        df["BB_lower"] = bb.bollinger_lband()
+        bb_upper = bb.bollinger_hband()
+        bb_lower = bb.bollinger_lband()
 
-        df.dropna(inplace=True)
+        # Add to dataframe
+        df["EMA20"] = ema
+        df["MACD"] = macd
+        df["RSI"] = rsi
+        df["BB_upper"] = bb_upper
+        df["BB_lower"] = bb_lower
 
-        # Check if touching upper band
+        # Drop rows with any NaNs
+        df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
+
+        # Boolean if price is touching upper band
         df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
 
         return df
@@ -80,8 +88,10 @@ if not data.empty:
     fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower", line=dict(color="red")))
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
+
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
