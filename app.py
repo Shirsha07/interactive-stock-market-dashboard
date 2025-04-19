@@ -14,6 +14,7 @@ st.sidebar.header("🔍 Stock Selector")
 stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE")
 timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
 
+# Fetch & process data
 @st.cache_data
 def fetch_data(symbol, period="1y"):
     df = yf.download(symbol + ".NS", period=period, progress=False)
@@ -22,19 +23,21 @@ def fetch_data(symbol, period="1y"):
         return pd.DataFrame()
 
     try:
-        close = pd.Series(df["Close"].values.ravel(), index=df.index)
+        # Force Close column to be a 1D Series
+        close = df["Close"].squeeze()  # This ensures it's not a 2D DataFrame
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]  # fallback
 
+        # Indicators
         df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
         df["MACD"] = MACD(close=close).macd_diff()
         df["RSI"] = RSIIndicator(close=close).rsi()
-
         bb = BollingerBands(close=close)
         df["BB_upper"] = bb.bollinger_hband()
         df["BB_lower"] = bb.bollinger_lband()
 
-        # Ensure data is clean after all indicators are added
-        df = df[["Open", "High", "Low", "Close", "EMA20", "MACD", "RSI", "BB_upper", "BB_lower"]]
-        df.dropna(inplace=True)
+        # Drop rows with NaNs
+        df = df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"])
 
         # Touching upper band
         df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
@@ -42,7 +45,7 @@ def fetch_data(symbol, period="1y"):
         return df
 
     except Exception as e:
-        st.error(f"Error calculating indicators for {symbol}: {e}")
+        st.error(f"❌ Error calculating indicators for {symbol}: {e}")
         return pd.DataFrame()
 
 # Fetch data
@@ -62,6 +65,7 @@ if not data.empty:
     st.success(f"✅ {len(filtered)} signal(s) matched the criteria.")
     st.dataframe(filtered.tail(10), use_container_width=True)
 
+    # Candlestick Chart
     st.subheader("📉 Candlestick Chart")
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
@@ -77,6 +81,7 @@ if not data.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
