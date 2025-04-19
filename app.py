@@ -23,12 +23,14 @@ def fetch_data(symbol, period="1y"):
         return pd.DataFrame()
 
     try:
-        # Force Close column to be a 1D Series
-        close = df["Close"].squeeze()  # This ensures it's not a 2D DataFrame
+        # Ensure Close is 1D Series
+        close = df["Close"]
         if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]  # fallback
+            close = close.iloc[:, 0]
+        else:
+            close = pd.Series(close.values, index=close.index)
 
-        # Indicators
+        # Technical Indicators
         df["EMA20"] = EMAIndicator(close=close, window=20).ema_indicator()
         df["MACD"] = MACD(close=close).macd_diff()
         df["RSI"] = RSIIndicator(close=close).rsi()
@@ -36,10 +38,9 @@ def fetch_data(symbol, period="1y"):
         df["BB_upper"] = bb.bollinger_hband()
         df["BB_lower"] = bb.bollinger_lband()
 
-        # Drop rows with NaNs
-        df = df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"])
+        df.dropna(inplace=True)
 
-        # Touching upper band
+        # Check if touching upper band
         df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
 
         return df
@@ -48,7 +49,7 @@ def fetch_data(symbol, period="1y"):
         st.error(f"❌ Error calculating indicators for {symbol}: {e}")
         return pd.DataFrame()
 
-# Fetch data
+# Load data
 data = fetch_data(stock, period=timeframe)
 
 if not data.empty:
@@ -74,13 +75,14 @@ if not data.empty:
         low=data["Low"],
         close=data["Close"]
     )])
-    fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], mode="lines", name="EMA20"))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], mode="lines", name="BB Upper"))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower"))
+    fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], mode="lines", name="EMA20", line=dict(color="blue")))
+    fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], mode="lines", name="BB Upper", line=dict(color="green")))
+    fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower", line=dict(color="red")))
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
