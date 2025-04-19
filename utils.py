@@ -1,6 +1,5 @@
 import pandas as pd
 from ta.trend import MACD
-from ta.momentum import RSIIndicator  # Update import to RSIIndicator
 from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator
 
@@ -14,6 +13,19 @@ def load_data_from_file(uploaded_file):
         raise ValueError("Unsupported file format")
 
 # Function to calculate technical indicators
+def calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+
+    avg_gain = gain.rolling(window=window, min_periods=1).mean()
+    avg_loss = loss.rolling(window=window, min_periods=1).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+# Function to calculate all indicators
 def calculate_indicators(data):
     # Ensure 'Close' column is strictly one-dimensional
     data['Close'] = data['Close'].squeeze()  # Flattening if it's 2D (i.e., shape (n, 1))
@@ -23,9 +35,8 @@ def calculate_indicators(data):
     data['MACD'] = macd_indicator.macd()
     data['MACD_signal'] = macd_indicator.macd_signal()
 
-    # RSI (Updated import to RSIIndicator)
-    rsi_indicator = RSIIndicator(data['Close'])
-    data['RSI'] = rsi_indicator.rsi()
+    # Manually calculate RSI
+    data['RSI'] = calculate_rsi(data['Close'])
 
     # Bollinger Bands
     bb_indicator = BollingerBands(data['Close'])
