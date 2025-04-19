@@ -19,7 +19,6 @@ timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", 
 def fetch_data(symbol, period="1y"):
     try:
         symbol = symbol.upper() + ".NS"  # Ensure correct symbol format for NSE stocks
-        st.write(f"Fetching data for: {symbol}")  # Debugging: Show symbol being fetched
         df = yf.download(symbol, period=period, progress=False)
 
         # Debugging: Check if the data was fetched correctly
@@ -94,8 +93,19 @@ if not data.empty:
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
 
+    # Exporting chart
+    st.subheader("📤 Export Chart")
+    export_format = st.radio("Select Export Format", ("PNG", "HTML"))
+    if export_format == "PNG":
+        st.error("Exporting as PNG is not yet implemented. Please use HTML export for now.")
+    elif export_format == "HTML":
+        fig.write_html("stock_chart.html")
+        with open("stock_chart.html", "r") as f:
+            st.download_button(label="Download Chart as HTML", data=f, file_name="stock_chart.html", mime="text/html")
+
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
