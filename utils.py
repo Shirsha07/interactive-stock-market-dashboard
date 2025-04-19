@@ -9,25 +9,26 @@ def fetch_stock_data(ticker, start_date, end_date):
     return data
 
 def calculate_indicators(data):
-    # Ensure Close is a Series, not DataFrame
-    close = data["Close"].squeeze()
-
+    close = data["Close"]
+    
     # MACD
-    macd = MACD(close).macd().squeeze()
-    data["MACD"] = macd
+    macd_raw = MACD(close).macd()
+    data["MACD"] = pd.Series(macd_raw.values.ravel(), index=data.index)
 
     # RSI
-    rsi = RSIIndicator(close).rsi().squeeze()
-    data["RSI"] = rsi
+    rsi_raw = RSIIndicator(close).rsi()
+    data["RSI"] = pd.Series(rsi_raw.values.ravel(), index=data.index)
 
     # EMA
-    ema = EMAIndicator(close, window=20).ema_indicator().squeeze()
-    data["EMA20"] = ema
+    ema_raw = EMAIndicator(close, window=20).ema_indicator()
+    data["EMA20"] = pd.Series(ema_raw.values.ravel(), index=data.index)
 
     # Bollinger Bands
     bb = BollingerBands(close)
-    data["BB_upper"] = bb.bollinger_hband().squeeze()
-    data["BB_lower"] = bb.bollinger_lband().squeeze()
+    upper_band = bb.bollinger_hband()
+    lower_band = bb.bollinger_lband()
+    data["BB_upper"] = pd.Series(upper_band.values.ravel(), index=data.index)
+    data["BB_lower"] = pd.Series(lower_band.values.ravel(), index=data.index)
 
     return data
 
@@ -46,5 +47,6 @@ def filter_downward_trending_stocks(data):
         (data["Close"] <= data["BB_lower"]) &
         (data["Close"] < data["EMA20"])
     ]
+
 
 
