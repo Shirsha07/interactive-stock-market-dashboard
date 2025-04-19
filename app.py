@@ -28,14 +28,18 @@ def fetch_data(symbol, period="1y"):
 
         # Debugging: Check if the data was fetched correctly
         st.write(f"Data for {symbol}:")
-        st.write(df.head())  # Display the first few rows to confirm data retrieval
+        st.write(df.tail())  # Display the last few rows to confirm data retrieval
 
         if df.empty or "Close" not in df.columns:
             st.warning(f"⚠️ No data available for {symbol}. Please check the symbol or try a different one.")
             return pd.DataFrame()
 
         # Ensure Close is strictly 1-dimensional (Series)
-        close = pd.Series(df["Close"].values, index=df.index)
+        close = df["Close"]
+
+        # If we only have a single row (for today), make sure the series is 1D
+        if len(close.shape) > 1:
+            close = close.squeeze()  # Converts 2D array to 1D series if necessary
 
         # Calculate Indicators
         ema = EMAIndicator(close=close, window=20).ema_indicator()
@@ -117,6 +121,7 @@ if not data.empty:
 
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
