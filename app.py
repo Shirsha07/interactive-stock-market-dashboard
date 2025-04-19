@@ -20,9 +20,9 @@ def fetch_data(symbol, period="1y"):
     try:
         symbol = symbol.upper() + ".NS"  # Ensure correct symbol format for NSE stocks
 
-        # If 'today' is selected, fetch data for the latest day
+        # If 'today' is selected, fetch the last 5 days of data
         if period == "today":
-            df = yf.download(symbol, period="1d", progress=False)
+            df = yf.download(symbol, period="5d", progress=False)
         else:
             df = yf.download(symbol, period=period, progress=False)
 
@@ -37,27 +37,26 @@ def fetch_data(symbol, period="1y"):
         # Ensure Close is strictly 1-dimensional (Series)
         close = pd.Series(df["Close"].values, index=df.index)
 
-        # Calculate Indicators (only for historical data if 'today' is not selected)
-        if period != "today":
-            ema = EMAIndicator(close=close, window=20).ema_indicator()
-            macd = MACD(close=close).macd_diff()
-            rsi = RSIIndicator(close=close).rsi()
-            bb = BollingerBands(close=close)
-            bb_upper = bb.bollinger_hband()
-            bb_lower = bb.bollinger_lband()
+        # Calculate Indicators
+        ema = EMAIndicator(close=close, window=20).ema_indicator()
+        macd = MACD(close=close).macd_diff()
+        rsi = RSIIndicator(close=close).rsi()
+        bb = BollingerBands(close=close)
+        bb_upper = bb.bollinger_hband()
+        bb_lower = bb.bollinger_lband()
 
-            # Add indicators to DataFrame
-            df["EMA20"] = ema
-            df["MACD"] = macd
-            df["RSI"] = rsi
-            df["BB_upper"] = bb_upper
-            df["BB_lower"] = bb_lower
+        # Add indicators to DataFrame
+        df["EMA20"] = ema
+        df["MACD"] = macd
+        df["RSI"] = rsi
+        df["BB_upper"] = bb_upper
+        df["BB_lower"] = bb_lower
 
-            # Drop rows with any NaNs
-            df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
+        # Drop rows with any NaNs
+        df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
 
-            # Boolean if price is touching upper band
-            df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
+        # Boolean if price is touching upper band
+        df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
 
         return df
 
@@ -69,13 +68,17 @@ def fetch_data(symbol, period="1y"):
 data = fetch_data(stock, period=timeframe)
 
 if not data.empty:
-    # Display indicators
+    # Display raw data and indicators for today
+    if timeframe == "today":
+        st.subheader(f"📊 Today's Data for {stock.upper()}")
+        st.write(data)  # Display today's raw market data (Open, High, Low, Close)
+
+    # Display indicators and charts for historical data
     if timeframe != "today":
         st.subheader(f"📊 Indicators for {stock.upper()}")
         st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
 
-    # Filtered signals based on criteria (only applies to historical data)
-    if timeframe != "today":
+        # Filtered signals based on criteria
         st.subheader("📌 Filtered Signals")
         filtered = data[
             (data["MACD"] > 0) &
@@ -114,6 +117,7 @@ if not data.empty:
 
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
