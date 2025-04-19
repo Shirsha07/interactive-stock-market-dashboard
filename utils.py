@@ -4,62 +4,72 @@ from ta.trend import MACD, EMAIndicator
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 
+# Fetch stock data
 def fetch_stock_data(ticker, start_date, end_date):
     data = yf.download(ticker, start=start_date, end=end_date)
     return data
 
+# Calculate indicators and add them to the dataframe
 def calculate_indicators(data):
-    close = data["Close"]
+    close = data["Close"]  
 
-    # MACD
-    macd = MACD(close).macd()
-    data["MACD"] = pd.Series(macd.values.ravel(), index=data.index)
+    # MACD (Moving Average Convergence Divergence)
+    macd_indicator = MACD(close)
+    data["MACD"] = macd_indicator.macd()
 
-    # RSI
-    rsi = RSIIndicator(close).rsi()
-    data["RSI"] = pd.Series(rsi.values.ravel(), index=data.index)
+    # RSI (Relative Strength Index)
+    rsi_indicator = RSIIndicator(close)
+    data["RSI"] = rsi_indicator.rsi()
 
-    # EMA 20
-    ema = EMAIndicator(close, window=20).ema_indicator()
-    data["EMA20"] = pd.Series(ema.values.ravel(), index=data.index)
+    # EMA (Exponential Moving Average) with a 20-day window
+    ema_indicator = EMAIndicator(close, window=20)
+    data["EMA20"] = ema_indicator.ema_indicator()
 
     # Bollinger Bands
-    bb = BollingerBands(close)
-    upper = bb.bollinger_hband()
-    lower = bb.bollinger_lband()
-    data["BB_upper"] = pd.Series(upper.values.ravel(), index=data.index)
-    data["BB_lower"] = pd.Series(lower.values.ravel(), index=data.index)
+    bb_indicator = BollingerBands(close)
+    data["BB_upper"] = bb_indicator.bollinger_hband()
+    data["BB_lower"] = bb_indicator.bollinger_lband()
+
+    # Ensure all new columns are aligned with the existing dataframe
+    data = data.dropna(subset=["MACD", "RSI", "EMA20", "BB_upper", "BB_lower"])
 
     return data
 
+# Filter stocks with upward trend
 def filter_upward_trending_stocks(data):
-    # Align all operands by reindexing to data.index just in case
-    close = data["Close"].reindex(data.index)
-    macd = data["MACD"].reindex(data.index)
-    rsi = data["RSI"].reindex(data.index)
-    bb_upper = data["BB_upper"].reindex(data.index)
-    ema20 = data["EMA20"].reindex(data.index)
-
     return data[
-        (macd > 0) &
-        (rsi > 50) &
-        (close >= bb_upper) &
-        (close > ema20)
+        (data["MACD"] > 0) &
+        (data["RSI"] > 50) &
+        (data["Close"] >= data["BB_upper"]) &
+        (data["Close"] > data["EMA20"])
     ]
 
+# Filter stocks with downward trend
 def filter_downward_trending_stocks(data):
-    close = data["Close"].reindex(data.index)
-    macd = data["MACD"].reindex(data.index)
-    rsi = data["RSI"].reindex(data.index)
-    bb_lower = data["BB_lower"].reindex(data.index)
-    ema20 = data["EMA20"].reindex(data.index)
-
     return data[
-        (macd < 0) &
-        (rsi < 50) &
-        (close <= bb_lower) &
-        (close < ema20)
+        (data["MACD"] < 0) &
+        (data["RSI"] < 50) &
+        (data["Close"] <= data["BB_lower"]) &
+        (data["Close"] < data["EMA20"])
     ]
+
+# Example usage
+ticker = "AAPL"
+start_date = "2020-01-01"
+end_date = "2023-01-01"
+data = fetch_stock_data(ticker, start_date, end_date)
+data_with_indicators = calculate_indicators(data)
+
+# Filter upward trending and downward trending stocks
+upward_trends = filter_upward_trending_stocks(data_with_indicators)
+downward_trends = filter_downward_trending_stocks(data_with_indicators)
+
+print("Upward Trending Stocks:")
+print(upward_trends)
+
+print("Downward Trending Stocks:")
+print(downward_trends)
+
 
 
 
