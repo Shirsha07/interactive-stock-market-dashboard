@@ -12,14 +12,19 @@ st.title("📈 Stock Market Visualizer")
 # Sidebar for stock selection
 st.sidebar.header("🔍 Stock Selector")
 stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE")
-timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
+timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", "5y", "today"], index=2)
 
 # Function to fetch and process data
 @st.cache_data
 def fetch_data(symbol, period="1y"):
     try:
         symbol = symbol.upper() + ".NS"  # Ensure correct symbol format for NSE stocks
-        df = yf.download(symbol, period=period, progress=False)
+
+        # If 'today' is selected, fetch data for the latest day
+        if period == "today":
+            df = yf.download(symbol, period="1d", progress=False)
+        else:
+            df = yf.download(symbol, period=period, progress=False)
 
         # Debugging: Check if the data was fetched correctly
         st.write(f"Data for {symbol}:")
@@ -32,26 +37,27 @@ def fetch_data(symbol, period="1y"):
         # Ensure Close is strictly 1-dimensional (Series)
         close = pd.Series(df["Close"].values, index=df.index)
 
-        # Calculate Indicators
-        ema = EMAIndicator(close=close, window=20).ema_indicator()
-        macd = MACD(close=close).macd_diff()
-        rsi = RSIIndicator(close=close).rsi()
-        bb = BollingerBands(close=close)
-        bb_upper = bb.bollinger_hband()
-        bb_lower = bb.bollinger_lband()
+        # Calculate Indicators (only for historical data if 'today' is not selected)
+        if period != "today":
+            ema = EMAIndicator(close=close, window=20).ema_indicator()
+            macd = MACD(close=close).macd_diff()
+            rsi = RSIIndicator(close=close).rsi()
+            bb = BollingerBands(close=close)
+            bb_upper = bb.bollinger_hband()
+            bb_lower = bb.bollinger_lband()
 
-        # Add indicators to DataFrame
-        df["EMA20"] = ema
-        df["MACD"] = macd
-        df["RSI"] = rsi
-        df["BB_upper"] = bb_upper
-        df["BB_lower"] = bb_lower
+            # Add indicators to DataFrame
+            df["EMA20"] = ema
+            df["MACD"] = macd
+            df["RSI"] = rsi
+            df["BB_upper"] = bb_upper
+            df["BB_lower"] = bb_lower
 
-        # Drop rows with any NaNs
-        df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
+            # Drop rows with any NaNs
+            df.dropna(subset=["EMA20", "MACD", "RSI", "BB_upper", "BB_lower"], inplace=True)
 
-        # Boolean if price is touching upper band
-        df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
+            # Boolean if price is touching upper band
+            df["Touching_Upper_Band"] = df["Close"] >= df["BB_upper"]
 
         return df
 
@@ -64,19 +70,21 @@ data = fetch_data(stock, period=timeframe)
 
 if not data.empty:
     # Display indicators
-    st.subheader(f"📊 Indicators for {stock.upper()}")
-    st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
+    if timeframe != "today":
+        st.subheader(f"📊 Indicators for {stock.upper()}")
+        st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
 
-    # Filtered signals based on criteria
-    st.subheader("📌 Filtered Signals")
-    filtered = data[
-        (data["MACD"] > 0) &
-        (data["RSI"] > 50) &
-        (data["Touching_Upper_Band"]) &
-        (data["Close"] > data["EMA20"])
-    ]
-    st.success(f"✅ {len(filtered)} signal(s) matched the criteria.")
-    st.dataframe(filtered.tail(10), use_container_width=True)
+    # Filtered signals based on criteria (only applies to historical data)
+    if timeframe != "today":
+        st.subheader("📌 Filtered Signals")
+        filtered = data[
+            (data["MACD"] > 0) &
+            (data["RSI"] > 50) &
+            (data["Touching_Upper_Band"]) &
+            (data["Close"] > data["EMA20"])
+        ]
+        st.success(f"✅ {len(filtered)} signal(s) matched the criteria.")
+        st.dataframe(filtered.tail(10), use_container_width=True)
 
     # Candlestick Chart with indicators
     st.subheader("📉 Candlestick Chart")
@@ -87,9 +95,10 @@ if not data.empty:
         low=data["Low"],
         close=data["Close"]
     )])
-    fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], mode="lines", name="EMA20", line=dict(color="blue")))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], mode="lines", name="BB Upper", line=dict(color="green")))
-    fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower", line=dict(color="red")))
+    if timeframe != "today":
+        fig.add_trace(go.Scatter(x=data.index, y=data["EMA20"], mode="lines", name="EMA20", line=dict(color="blue")))
+        fig.add_trace(go.Scatter(x=data.index, y=data["BB_upper"], mode="lines", name="BB Upper", line=dict(color="green")))
+        fig.add_trace(go.Scatter(x=data.index, y=data["BB_lower"], mode="lines", name="BB Lower", line=dict(color="red")))
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -105,6 +114,7 @@ if not data.empty:
 
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
