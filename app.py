@@ -9,28 +9,26 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Stock Market Visualizer", layout="wide")
 st.title("📈 Stock Market Visualizer")
 
-# Sidebar
+# Sidebar for stock selection
 st.sidebar.header("🔍 Stock Selector")
 stock = st.sidebar.text_input("Enter NSE Symbol", value="RELIANCE")
 timeframe = st.sidebar.selectbox("Select Timeframe", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
 
-# Fetch and process data
+# Function to fetch and process data
 @st.cache_data
 def fetch_data(symbol, period="1y"):
-    df = yf.download(symbol + ".NS", period=period, progress=False)
+    # Ensure the correct format for NSE stock symbols
+    symbol = symbol.upper() + ".NS"
+
+    # Download data using yfinance
+    df = yf.download(symbol, period=period, progress=False)
 
     if df.empty or "Close" not in df.columns:
         return pd.DataFrame()
 
     try:
-        # Ensure Close is a 1D Series
-        close = df["Close"]
-        if isinstance(close, pd.DataFrame):
-            close = close.squeeze()
-        else:
-            close = pd.Series(close.values, index=close.index)
-
         # Calculate Indicators
+        close = df["Close"]
         ema = EMAIndicator(close=close, window=20).ema_indicator()
         macd = MACD(close=close).macd_diff()
         rsi = RSIIndicator(close=close).rsi()
@@ -61,9 +59,11 @@ def fetch_data(symbol, period="1y"):
 data = fetch_data(stock, period=timeframe)
 
 if not data.empty:
+    # Display indicators
     st.subheader(f"📊 Indicators for {stock.upper()}")
     st.line_chart(data[["Close", "EMA20", "BB_upper", "BB_lower"]])
 
+    # Filtered signals based on criteria
     st.subheader("📌 Filtered Signals")
     filtered = data[
         (data["MACD"] > 0) &
@@ -74,7 +74,7 @@ if not data.empty:
     st.success(f"✅ {len(filtered)} signal(s) matched the criteria.")
     st.dataframe(filtered.tail(10), use_container_width=True)
 
-    # Candlestick Chart
+    # Candlestick Chart with indicators
     st.subheader("📉 Candlestick Chart")
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
@@ -89,8 +89,20 @@ if not data.empty:
     fig.update_layout(xaxis_rangeslider_visible=False, height=500)
     st.plotly_chart(fig, use_container_width=True)
 
+    # Exporting chart
+    st.subheader("📤 Export Chart")
+    export_format = st.radio("Select Export Format", ("PNG", "HTML"))
+    if export_format == "PNG":
+        # Export as PNG (Note: For PNG, we need to convert using Kaleido or Orca, which requires additional installation)
+        st.error("Exporting as PNG is not yet implemented. Please use HTML export for now.")
+    elif export_format == "HTML":
+        fig.write_html("stock_chart.html")
+        with open("stock_chart.html", "r") as f:
+            st.download_button(label="Download Chart as HTML", data=f, file_name="stock_chart.html", mime="text/html")
+
 else:
     st.warning("⚠️ No data available. Please check the symbol or try a different one.")
+
 
 
 
