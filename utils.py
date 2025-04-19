@@ -1,51 +1,50 @@
-import pandas as pd
 import yfinance as yf
-import ta
+import pandas as pd
+from ta.trend import MACD, EMAIndicator
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
 
-def fetch_stock_data(ticker, start, end, interval='1d'):
-    df = yf.download(ticker, start=start, end=end, interval=interval)
-    df.dropna(inplace=True)
-    return df
+def fetch_stock_data(ticker, start_date, end_date):
+    data = yf.download(ticker, start=start_date, end=end_date)
+    return data
 
-def calculate_indicators(df):
-    # Ensure 'Close' is strictly 1-dimensional
-    close = pd.Series(df["Close"].values, index=df.index)
+def calculate_indicators(data):
+    # Ensure Close is a Series, not DataFrame
+    close = data["Close"].squeeze()
 
     # MACD
-    macd = ta.trend.MACD(close=close)
-    df["MACD"] = macd.macd()
-    df["MACD_signal"] = macd.macd_signal()
+    macd = MACD(close).macd().squeeze()
+    data["MACD"] = macd
 
     # RSI
-    rsi = ta.momentum.RSIIndicator(close=close)
-    df["RSI"] = rsi.rsi()
+    rsi = RSIIndicator(close).rsi().squeeze()
+    data["RSI"] = rsi
 
-    # EMA (20-day)
-    ema20 = ta.trend.EMAIndicator(close=close, window=20)
-    df["EMA20"] = ema20.ema_indicator()
+    # EMA
+    ema = EMAIndicator(close, window=20).ema_indicator().squeeze()
+    data["EMA20"] = ema
 
     # Bollinger Bands
-    bb = ta.volatility.BollingerBands(close=close, window=20, window_dev=2)
-    df["BB_upper"] = bb.bollinger_hband()
-    df["BB_lower"] = bb.bollinger_lband()
+    bb = BollingerBands(close)
+    data["BB_upper"] = bb.bollinger_hband().squeeze()
+    data["BB_lower"] = bb.bollinger_lband().squeeze()
 
-    return df
+    return data
 
-def filter_upward_trending_stocks(df):
-    condition = (
-        (df["MACD"] > 0) &
-        (df["RSI"] > 50) &
-        (df["Close"] >= df["BB_upper"]) &
-        (df["Close"] > df["EMA20"])
-    )
-    return df[condition]
+def filter_upward_trending_stocks(data):
+    return data[
+        (data["MACD"] > 0) &
+        (data["RSI"] > 50) &
+        (data["Close"] >= data["BB_upper"]) &
+        (data["Close"] > data["EMA20"])
+    ]
 
-def filter_downward_trending_stocks(df):
-    condition = (
-        (df["MACD"] < 0) &
-        (df["RSI"] < 50) &
-        (df["Close"] <= df["BB_lower"]) &
-        (df["Close"] < df["EMA20"])
-    )
-    return df[condition]
+def filter_downward_trending_stocks(data):
+    return data[
+        (data["MACD"] < 0) &
+        (data["RSI"] < 50) &
+        (data["Close"] <= data["BB_lower"]) &
+        (data["Close"] < data["EMA20"])
+    ]
+
 
