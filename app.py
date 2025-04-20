@@ -1,62 +1,140 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
-from utils import calculate_indicators, filter_upward_trend, filter_downward_trend, load_data_from_file
-from io import StringIO
+import yfinance as yf
+from ta.trend import MACD, EMAIndicator
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+import plotly.graph_objs as go
 
-# Function to create candlestick chart with overlays
-def create_candlestick_chart(df, stock_symbol):
-    fig = go.Figure(data=[go.Candlestick(x=df.index,
-                                        open=df['Open'],
-                                        high=df['High'],
-                                        low=df['Low'],
-                                        close=df['Close'],
-                                        name='Candlesticks')])
+st.set_page_config(page_title="Interactive Stock Market Dashboard", layout="wide")
+st.title("📈 Interactive Stock Market Dashboard")
 
-    # Add moving averages (EMA, SMA) as overlays
-    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_20'], mode='lines', name='EMA 20', line=dict(color='orange')))
-    fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], mode='lines', name='SMA 50', line=dict(color='blue')))
-    
-    # Add RSI and Bollinger Bands overlays
-    fig.update_layout(title=f"Stock Price and Indicators for {stock_symbol}",
-                      xaxis_title='Date',
-                      yaxis_title='Price (USD)',
-                      template='plotly_dark')
-    return fig
+# --- Load Nifty 200 symbols ---
+@st.cache_data
+def load_nifty200_symbols():
+    df = pd.read_csv("nifty200.csv")
+    return df["Symbol"].dropna().tolist()
 
-# Upload CSV/Excel/Google Sheets
-st.title("Interactive Stock Market Dashboard")
+nifty200_symbols = load_nifty200_symbols()
 
-uploaded_file = st.file_uploader("Upload your CSV/Excel/Google Sheet file", type=["csv", "xlsx", "xls"])
-if uploaded_file is not None:
-    df = load_data_from_file(uploaded_file)
-    df = calculate_indicators(df)  # Calculate indicators like MACD, RSI, Bollinger Bands
-    stock_symbol = df.columns[0]  # Assuming the first column is the stock symbol
+# --- Timeframe options ---
+timeframe_map = {
+    "Today": "1d",
+    "5 Minutes": "5m",
+    "1 Day": "1d",
+    "1 Week": "1wk",
+    "1 Month": "1mo",
+    "3 Months": "3mo",
+    "6 Months": "6mo",
+    "1 Year": "1y",
+    "5 Years": "5y"
+}
 
-    # Display charts with overlays
-    candlestick_chart = create_candlestick_chart(df, stock_symbol)
-    st.plotly_chart(candlestick_chart)
+timeframe = st.selectbox("Select Timeframe", options=list(timeframe_map.keys()), index=4)
+interval = timeframe_map[timeframe]
 
-    # Filter and display upward and downward trends
-    upward_stocks = filter_upward_trend(df)
-    downward_stocks = filter_downward_trend(df)
+selected_symbols = st.multiselect(
+    "Enter Stock Symbols (e.g., INFY.NS, TCS.NS)",
+    options=nifty200_symbols
+)
 
-    st.subheader("Upward Trend Stocks")
-    st.write(upward_stocks)
+# --- Upward Trend Section ---
+st.subheader("🚀 Stocks in Upward Trend")
 
-    st.subheader("Downward Trend Stocks")
-    st.write(downward_stocks)
+def analyze_stock(symbol):
+    df = yf.download(symbol, period="6mo", interval="1d")
+    if df.empty or len(df) < 30:
+        return None
 
-    # Export options
-    export_choice = st.selectbox("Export Options", ["Export as PNG", "Export as HTML"])
-    if export_choice == "Export as PNG":
-        fig.write_image("candlestick_chart.png")
-        st.download_button("Download PNG", "candlestick_chart.png")
-    elif export_choice == "Export as HTML":
-        fig.write_html("candlestick_chart.html")
-        st.download_button("Download HTML", "candlestick_chart.html")
+    df.dropna(inplace=True)
+    df["EMA"] = EMAIndicator(df["Close"], window=20).ema_indicator()
+    df["RSI"] = RSIIndicator(df["Close"], window=14).rsi()
+    macd = MACD(df["Close"])
+    df["MACD"] = macd.macd()
+    boll = BollingerBands(df["Close"], window=20)
+    df["bb_high"] = boll.bollinger_hband()
 
-else:
-    st.warning("Please upload a CSV/Excel file.")
+    last = df.iloc[-1]
+
+    if (
+        last["MACD"] > 0 and
+        last["RSI"] > 50 and
+        last["Close"] >= last["bb_high"] and
+        last["Close"] > last["EMA"]
+    ):
+        return {
+            "Symbol": symbol,
+            "Current Price": round(last["Close"], 2),
+            "Yesterday Close": round(df.iloc[-2]["Close"], 2),
+            "Change": round(last["Close"] - df.iloc[-2]["Close"], 2),
+            "Change %": round((last["Close"] - df.iloc[-2]["Close"]) / df.iloc[-2]["Close"] * 100, 2),
+            "52W High": round(df["High"].max(), 2),
+            "52W Low": round(df["Low"].min(), 2)
+        }
+    return None
+
+if selected_symbols:
+    upward_stocks = []
+    for symbol in selected_symbols:
+        stock_info = analyze_stock(symbol)
+        if stock_info:
+            upward_stocks.append(stock_info)
+
+    if upward_stocks:
+        st.dataframe(pd.DataFrame(upward_stocks))
+    else:
+        st.info("No stocks are currently in an upward trend.")
+
+# --- Candlestick Chart ---
+st.subheader("📉 Candlestick Chart with Indicators")
+selected_chart_symbol = st.selectbox("Select a stock to visualize", selected_symbols)
+
+if selected_chart_symbol:
+    df = yf.download(selected_chart_symbol, period="6mo", interval=interval)
+    df.dropna(inplace=True)
+    df["EMA"] = EMAIndicator(df["Close"], window=20).ema_indicator()
+    df["RSI"] = RSIIndicator(df["Close"], window=14).rsi()
+    boll = BollingerBands(df["Close"], window=20)
+    df["bb_high"] = boll.bollinger_hband()
+    df["bb_low"] = boll.bollinger_lband()
+
+    fig = go.Figure(data=[
+        go.Candlestick(
+            x=df.index,
+            open=df["Open"],
+            high=df["High"],
+            low=df["Low"],
+            close=df["Close"],
+            name="Candlestick"
+        ),
+        go.Scatter(x=df.index, y=df["EMA"], line=dict(color='blue'), name="EMA"),
+        go.Scatter(x=df.index, y=df["bb_high"], line=dict(color='green', dash='dot'), name="Upper BB"),
+        go.Scatter(x=df.index, y=df["bb_low"], line=dict(color='red', dash='dot'), name="Lower BB"),
+    ])
+    fig.update_layout(xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- Upload Looker/Google Sheet/CSV ---
+st.subheader("📂 Upload Your Dashboard Reports")
+uploaded_file = st.file_uploader("Upload CSV/XLSX report or paste Google Sheet/Looker URL below", type=["csv", "xlsx"])
+
+dashboard_url = st.text_input("Or paste public Google Sheet/Looker dashboard URL")
+
+if uploaded_file:
+    if uploaded_file.name.endswith(".csv"):
+        df_uploaded = pd.read_csv(uploaded_file)
+    else:
+        df_uploaded = pd.read_excel(uploaded_file)
+    st.write("Uploaded Report Preview:")
+    st.dataframe(df_uploaded.head())
+
+elif dashboard_url:
+    try:
+        sheet_url = dashboard_url.replace("/edit#gid=", "/export?format=csv&gid=")
+        df_uploaded = pd.read_csv(sheet_url)
+        st.write("Embedded Report Preview:")
+        st.dataframe(df_uploaded.head())
+    except Exception as e:
+        st.error(f"Failed to load dashboard from URL: {e}")
+
 
