@@ -52,25 +52,27 @@ def get_stock_data(symbol):
 
 # Section 1: Upward Trend Stocks
 st.subheader("📊 Stocks in Upward Trend")
-upward_trend = []
+if st.button("🔼 Show Stocks in Upward Trend"):
+    upward_trend = []
+    with st.spinner("Scanning Nifty 200 stocks for upward trends..."):
+        for symbol in nifty200_symbols:
+            data = get_stock_data(symbol)
+            if data is None or len(data) < 20:
+                continue
+            latest = data.iloc[-1]
+            if (
+                latest['MACD'] > 0 and
+                latest['RSI'] > 50 and
+                latest['Close'] >= latest['bb_upper'] and
+                latest['Close'] > latest['EMA20']
+            ):
+                upward_trend.append(symbol)
 
-for symbol in nifty200_symbols:
-    data = get_stock_data(symbol)
-    if data is None or len(data) < 20:
-        continue
-    latest = data.iloc[-1]
-    if (
-        latest['MACD'] > 0 and
-        latest['RSI'] > 50 and
-        latest['Close'] >= latest['bb_upper'] and
-        latest['Close'] > latest['EMA20']
-    ):
-        upward_trend.append(symbol)
-
-if upward_trend:
-    st.success(f"Stocks currently in upward trend: {', '.join(upward_trend)}")
-else:
-    st.warning("No stocks currently meet all the upward trend criteria.")
+    if upward_trend:
+        st.success("Stocks currently in upward trend:")
+        st.write(upward_trend)
+    else:
+        st.warning("No stocks currently meet all the upward trend criteria.")
 
 # Section 2: Candlestick Chart and Stock Details
 st.subheader("📉 Candlestick Chart with Indicators")
@@ -140,5 +142,7 @@ elif sheet_url:
 
 # Footer
 st.caption("Developed with ❤️ using Streamlit")
+
+
 
 
