@@ -11,9 +11,11 @@ import base64
 st.set_page_config(page_title="📈 Interactive Stock Market Dashboard", layout="wide")
 st.title("📈 Interactive Stock Market Dashboard")
 
-# Load Nifty 200 symbols from CSV
-nifty200_df = pd.read_csv("nifty200.csv")
-nifty200_symbols = nifty200_df['Symbol'].dropna().tolist()
+# Load Nifty 200 symbols from Google Sheet
+sheet_url = "https://docs.google.com/spreadsheets/d/1fiuz2q9ur6SVwWOrBxgk1ejCgEdEwCnLNBfHd1Ku7U0/edit#gid=0"
+csv_url = sheet_url.replace("/edit#gid=", "/export?format=csv&gid=")
+nifty200_df = pd.read_csv(csv_url)
+nifty200_symbols = nifty200_df['Symbol'].dropna().astype(str).str.strip().tolist()
 
 # Timeframe mapping
 timeframes = {
@@ -39,34 +41,19 @@ selected_symbols = st.multiselect(
 
 # Function to fetch and calculate indicators
 def get_stock_data(symbol):
-    try:
-        data = yf.download(symbol, period=period, interval=interval, progress=False)
-        if data is None or data.empty or 'Close' not in data.columns:
-            return None
-
-        # Flatten multi-dimensional data if necessary
-        data['Close'] = data['Close'].squeeze()
-        data['Open'] = data['Open'].squeeze()
-        data['High'] = data['High'].squeeze()
-        data['Low'] = data['Low'].squeeze()
-
-        # Handle short timeframes
-        if len(data) < 20:
-            return None
-
-        # Technical indicators
-        data['EMA20'] = EMAIndicator(close=data['Close'], window=20).ema_indicator()
-        data['MACD'] = MACD(close=data['Close']).macd()
-        data['RSI'] = RSIIndicator(close=data['Close']).rsi()
-        bb = BollingerBands(close=data['Close'], window=20, window_dev=2)
-        data['bb_upper'] = bb.bollinger_hband()
-        data['bb_lower'] = bb.bollinger_lband()
-        return data
-    except Exception as e:
-        print(f"Error fetching {symbol}: {e}")
+    data = yf.download(symbol, period=period, interval=interval, progress=False)
+    if data.empty:
         return None
+    data['Close'] = data['Close'].astype(float)
+    data['EMA20'] = EMAIndicator(close=data['Close'].squeeze(), window=20).ema_indicator()
+    data['MACD'] = MACD(close=data['Close'].squeeze()).macd()
+    data['RSI'] = RSIIndicator(close=data['Close'].squeeze()).rsi()
+    bb = BollingerBands(close=data['Close'].squeeze(), window=20, window_dev=2)
+    data['bb_upper'] = bb.bollinger_hband()
+    data['bb_lower'] = bb.bollinger_lband()
+    return data
 
-# Section 1: Upward Trend Stocks
+# Section 1: Upward Trend Stocks (Improved Logic)
 st.subheader("📊 Stocks in Upward Trend")
 if st.button("🔼 Show Stocks in Upward Trend"):
     upward_trend = []
@@ -76,10 +63,14 @@ if st.button("🔼 Show Stocks in Upward Trend"):
             if data is None or len(data) < 20:
                 continue
             latest = data.iloc[-1]
+
+            if pd.isna(latest['MACD']) or pd.isna(latest['RSI']) or pd.isna(latest['EMA20']) or pd.isna(latest['bb_upper']):
+                continue
+
             if (
                 latest['MACD'] > 0 and
                 latest['RSI'] > 50 and
-                latest['Close'] >= latest['bb_upper'] and
+                latest['Close'] >= 0.98 * latest['bb_upper'] and
                 latest['Close'] > latest['EMA20']
             ):
                 upward_trend.append(symbol)
@@ -158,6 +149,7 @@ elif sheet_url:
 
 # Footer
 st.caption("Developed with ❤️ using Streamlit")
+
 
 
 
