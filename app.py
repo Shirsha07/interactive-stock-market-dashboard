@@ -39,16 +39,32 @@ selected_symbols = st.multiselect(
 
 # Function to fetch and calculate indicators
 def get_stock_data(symbol):
-    data = yf.download(symbol, period=period, interval=interval, progress=False)
-    if data.empty:
+    try:
+        data = yf.download(symbol, period=period, interval=interval, progress=False)
+        if data is None or data.empty or 'Close' not in data.columns:
+            return None
+
+        # Flatten multi-dimensional data if necessary
+        data['Close'] = data['Close'].squeeze()
+        data['Open'] = data['Open'].squeeze()
+        data['High'] = data['High'].squeeze()
+        data['Low'] = data['Low'].squeeze()
+
+        # Handle short timeframes
+        if len(data) < 20:
+            return None
+
+        # Technical indicators
+        data['EMA20'] = EMAIndicator(close=data['Close'], window=20).ema_indicator()
+        data['MACD'] = MACD(close=data['Close']).macd()
+        data['RSI'] = RSIIndicator(close=data['Close']).rsi()
+        bb = BollingerBands(close=data['Close'], window=20, window_dev=2)
+        data['bb_upper'] = bb.bollinger_hband()
+        data['bb_lower'] = bb.bollinger_lband()
+        return data
+    except Exception as e:
+        print(f"Error fetching {symbol}: {e}")
         return None
-    data['EMA20'] = EMAIndicator(close=data['Close'], window=20).ema_indicator()
-    data['MACD'] = MACD(close=data['Close']).macd()
-    data['RSI'] = RSIIndicator(close=data['Close']).rsi()
-    bb = BollingerBands(close=data['Close'], window=20, window_dev=2)
-    data['bb_upper'] = bb.bollinger_hband()
-    data['bb_lower'] = bb.bollinger_lband()
-    return data
 
 # Section 1: Upward Trend Stocks
 st.subheader("📊 Stocks in Upward Trend")
