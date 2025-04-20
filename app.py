@@ -53,34 +53,6 @@ def get_stock_data(symbol):
     data['bb_lower'] = bb.bollinger_lband()
     return data
 
-# Section 1: Upward Trend Stocks (Improved Logic)
-st.subheader("📊 Stocks in Upward Trend")
-if st.button("🔼 Show Stocks in Upward Trend"):
-    upward_trend = []
-    with st.spinner("Scanning Nifty 200 stocks for upward trends..."):
-        for symbol in nifty200_symbols:
-            data = get_stock_data(symbol)
-            if data is None or len(data) < 20:
-                continue
-            latest = data.iloc[-1]
-
-            if pd.isna(latest['MACD']) or pd.isna(latest['RSI']) or pd.isna(latest['EMA20']) or pd.isna(latest['bb_upper']):
-                continue
-
-            if (
-                latest['MACD'] > 0 and
-                latest['RSI'] > 50 and
-                latest['Close'] >= 0.98 * latest['bb_upper'] and
-                latest['Close'] > latest['EMA20']
-            ):
-                upward_trend.append(symbol)
-
-    if upward_trend:
-        st.success("Stocks currently in upward trend:")
-        st.write(upward_trend)
-    else:
-        st.warning("No stocks currently meet all the upward trend criteria.")
-
 # Section 2: Candlestick Chart and Stock Details
 st.subheader("📉 Candlestick Chart with Indicators")
 selected_chart_stock = st.selectbox("Select a stock to visualize", selected_symbols)
